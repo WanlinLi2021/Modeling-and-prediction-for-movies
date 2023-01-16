@@ -1,0 +1,274 @@
+---
+title: "Modeling and prediction for movies"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+library(statsr)
+```
+
+### Load data
+
+
+```{r load-data}
+load("movies.Rdata")
+```
+
+
+
+* * *
+
+## Part 1: Data
+The data set is comprised of 651 randomly sampled movies produced and released before 2016. It includes information from Rotten Tomatoes and IMDB for a random sample of movies. Because of this generalizability, we can make the correlation statements from this data set. Since the random assignment was not used, we can not make a causation conclusion from this data set.
+* * *
+
+## Part 2: Research question
+Is there a linear association between the audience score on Rotten Tomatoes and the characteristics of movies, critics opinion, nomination or award of Oscar?
+
+Reason: 1.The opinion of audiences is very important for the development of movies.
+        2. It's interest to know whether there is an association between the  audience score and Oscar awards.
+        3. The critics are a special group of audience, whether their opinion is associated with other audiences' opinion.
+        4. The results of this research will provide investors with references in choosing movie genre, actors, directors, etc.
+
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+```{r}
+#choosing variables related to our research
+data_movies <- movies %>%
+  select(audience_score, title_type, genre, runtime, critics_rating, critics_score, best_pic_nom, best_pic_win, best_actor_win, best_actress_win, best_dir_win)
+```
+
+Based on our research purpose, we choose the variables related to the characteristics of movies, critics opinion, nomination or award of Osca.
+
+```{r}
+#summary statistics
+summary(data_movies)
+```
+
+Taking "audience_score" as response variable, we have only two numerical explanatory variables ("critics_score" and "runtime").  There is one missing value in "runtime"
+
+
+```{r}
+# removing the missing value 
+data_movies <- data_movies %>%
+  filter(!is.na(runtime))
+```
+
+```{r}
+#Viewing the distribution of audience_score
+hist(data_movies$audience_score)
+```
+
+```{r}
+#Evaluating the normal distribution
+qqnorm(data_movies$audience_score)
+qqline(data_movies$audience_score)
+```
+
+It's wider than normal distribution.
+
+```{r}
+#check the linear relationship between audience_score and critics_score.
+ggplot(data = data_movies, aes(x = critics_score, y = audience_score )) +
+  geom_jitter() +
+  stat_smooth(method = "lm")
+```
+
+The relationship between audience_score and critics_score is linear. And the variability of the points around the least squares line is roughly constant.
+```{r}
+#check the linear relationship between audience_score and runtime.
+ggplot(data = data_movies, aes(x = runtime, y = audience_score )) +
+  geom_jitter() +
+  stat_smooth(method = "lm")
+```
+
+
+More than 50% of movies have run time around 100 minutes. And the variability of the points around the least squares line is not constant. We can see the maximum of "runtime" lies away from the center of the data in the horizontal direction.
+
+```{r}
+#check: Whether the outlier influence the slope of the regression line.
+delOutlier_movies <- data_movies %>%
+  filter(runtime != 267)
+```
+
+
+```{r}
+# Check:Whether the outlier influence the slope of the regression line.
+ggplot(data = delOutlier_movies, aes(x = runtime, y = audience_score )) +
+  geom_jitter() +
+  stat_smooth(method = "lm")
+```
+```{r}
+#check: Whether the slope of the regression line change considerably without the outlier.
+data_movies %>%
+  summarise(cor_old = cor(audience_score,runtime))
+delOutlier_movies %>%
+  summarise(cor_new = cor(audience_score,runtime))
+```
+
+After removing the outlier, the slop of regression line did not change much. So it is a leverage points.
+
+```{r}
+#check the linear relationship between critics_score and runtime.
+ggplot(data = data_movies, aes(x = runtime, y = critics_score )) +
+  geom_jitter() +
+  stat_smooth(method = "lm")
+```
+
+```{r}
+#check the linear relationship between critics_score and runtime.
+crit_runtime <- lm (critics_score ~ runtime, data = data_movies)
+summary(crit_runtime)
+```
+
+These two variables are collinear. Because they are not independent variables, these two variables may cant be in the same model. We will verify this in Modeling process.
+
+* * *
+
+## Part 4: Modeling
+
+**Specify which variables to consider for the full model**
+The variables considered in this study include: "title_type", "genre, runtime", "critics_rating", "critics_score", "best_pic_nom", "best_pic_win", "best_actor_win", "best_actress_win", "best_dir_win".
+
+These variables can help us explore the relationship between the audience score and the characteristics of movies, critics opinion and Oscar.
+
+**Reasoning for excluding certain variables**
+(1) The variables not related with our research are not included.
+(2) We exclude also the variables related with the IMDB, because the Rotten Tomatoes and IMDB are two companies similar, these variables are not independent with other variables. 
+
+**Reasoning for choice of model selection method **
+Since we have already specified the variables for the full model, and we want pay more attention to the significant predictors, we will use backward elimination method with P-value as the criteria. 
+
+**Carrying out the model selection**
+```{r}
+step1 <- lm(audience_score ~ title_type + genre + runtime + critics_rating + critics_score + best_pic_nom + best_pic_win + best_actor_win + best_actress_win + best_dir_win, data = data_movies)
+summary(step1)
+```
+In "genre", we found at least one level had the p_value < 0.05, so we need keep the entire variable as a whole.
+
+It's clear that the "best_dir_winyes" had the highest P-value and > 0.05, so we will drop "best_dir_win" at the first step. 
+
+```{r}
+step2 <- lm(audience_score ~ title_type + genre + runtime + critics_rating + critics_score + best_pic_nom + best_pic_win + best_actor_win + best_actress_win, data = data_movies)
+summary(step2)
+```
+Although "critics_ratingRotten" had the the highest P-value, "critics_ratingFresh" was significant. Therefore, we keep the "critics_rating" as a whole.
+
+Then, we found The "best_pic_winyes" had the highest P-value and > 0.05, so we will drop "best_pic_win" at the second step.
+
+```{r}
+step3 <- lm(audience_score ~ title_type + genre + runtime + critics_rating + critics_score + best_pic_nom + best_actor_win + best_actress_win, data = data_movies)
+summary(step3)
+```
+Both "title_typeFeature Film" and "title_typeTV Movie" had a much higher P_value, and > 0.05, so we should drop the entire "title_type" as a whole.
+
+```{r}
+step4 <- lm(audience_score ~ genre + runtime + critics_rating + critics_score + best_pic_nom + best_actor_win + best_actress_win, data = data_movies)
+summary(step4)
+```
+
+The "best_actor_winye" appeared the highest p-Value (> 0.05) among all variables, so we will eliminate "best_actor_win" in the next step.
+
+```{r}
+step5 <- lm(audience_score ~ genre + runtime + critics_rating + critics_score + best_pic_nom + best_actress_win, data = data_movies)
+summary(step5)
+```
+The "best_actress_winye" appeared the highest p-Value (> 0.05) among all variables, so we will eliminate "best_actress_win" in the next step.
+
+```{r}
+step6 <- lm(audience_score ~ genre + runtime + critics_rating + critics_score + best_pic_nom, data = data_movies)
+summary(step6)
+```
+
+The "runtime" appeared the highest p-Value (> 0.05) among all variables, so we will eliminate it in the next step.
+
+```{r}
+step_final <- lm(audience_score ~ genre + critics_rating + critics_score + best_pic_nom, data = data_movies)
+summary(step_final)
+```
+Now, all of the variables are significant. The model selection is finished.
+
+**Model diagnostics**
+**(1) check: each numerical explanatory variable linearly related to the response variable**
+
+```{r}
+#We only have one numerical variable ("critics_score") in our parsimonious model
+plot(step_final$residuals ~ data_movies$critics_score)
+```
+Our residuals were randomly scattered around zero, so this condition arrear to be met.
+
+**(2) Check: Nearly normal residuals with mean 0**
+
+```{r}
+hist(step_final$residuals)
+```
+It's a nearly normal distribution with mean 0. 
+
+```{r}
+#using Normal Probability Plot to evaluate the Normal Distribution.
+qqnorm(step_final$residuals)
+qqline(step_final$residuals)
+```
+
+The distribution is typically normal. Therefore, this condition is satisfied.
+
+**(3)Check: constant variability of residuals**
+
+```{r}
+plot(abs(step_final$residuals) ~ step_final$fitted.values)
+```
+The variability of points was roughly constant, so this condition seems to be fairly satisfied.
+
+**(4)Check: independent residuals**
+Our data was randomly sampled. The data size is 651, less than 10% of the population. In conclusion, the condition is satisfied.
+
+**Interpretation of model coefficients**
+audience_score = 35.33 + 0.47critics_score - 0.49critics_ratingRotten - 3.75critics_ratingFresh + 8.54 best_pic_nomyes + 4.37genreAnimation + 5.89genreArt House&International - 1.06 genreComedy + 9.59genreDocumentary + 2.01genreDrama - 8.86genreHorror + 10.75genreMusical&performingArts - 3.60genreMystery&suspense + 1.81genreOther - 6.31genreScienceFiction&fantasy 
+
+(1) "Certified Fresh" in "critics_rating", "no" in "best_pic_nom" and "Action &Adventure" are reference levels.
+(2) All else held constant, with the critics_score increasing 1 the audience_score will increase approximately 0.47, on average. 
+(3) All else held constant, comparing to the movie not to be nominated for a best picture Oscar, the movie nominated will have 8.54 higher audience_score, on average.
+(4) All else held constant, the "Musical & Performing Arts" is more likely to have a higher audience score.
+
+* * *
+
+## Part 5: Prediction
+Searching key words in the data set, make sure the movie for prediction does not exist in our data set.
+
+```{r}
+# put the parametres into a adtaframe
+newMovie <- data.frame(critics_score = 93, critics_rating = "Certified Fresh", best_pic_nom = "no", genre = "Documentary")
+
+#construct a prediction interval around the prediction
+predict(step_final,newMovie, interval = "prediction", level = 0.95)
+```
+
+The predicted audience score is 88.32. We have 95% confidence that the actual audience score will between 60.75 and 100 (because the total score is 100).
+
+**Reference:** https://www.rottentomatoes.com/m/obit
+We can find the actual audience score in this movie was 77.
+
+* * *
+
+## Part 6: Conclusion
+
+Audience score on Rotten Tomatoes has the linear association with the genre of movie, critics score and  critics rating on Rotten Tomatoes, and Whether or not the movie won a best picture Oscar.
+It is possible to use this 4 variables to predict the audience score for the movie before 2016. Science we focused on the significant predictors in stead of finding more reliable predictions, we used P-value as the criteria for model selection, however, using adjusted R2 may have a better prediction result.
+In order to fully understand the audience's evaluation of a movie, the data from IMdb is also meaningful. Therefore, in further analysis, we can integrate this part of the data into our response variable.
+
+
+
+
