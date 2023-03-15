@@ -1,5 +1,7 @@
 # Modeling and prediction for movies with R
 
+<img src="projet_movie.jpg" alt="isolated" width="500"/>
+
 ## Part 1: Data
 The data set comprises 651 randomly sampled movies produced and released before 2016. It includes information from Rotten Tomatoes and IMDB for a random sample of films. Because of this generalizability, we can make the correlation statements from this data set. Since the random assignment was not used, we cannot make a causation conclusion from this data set.
 
